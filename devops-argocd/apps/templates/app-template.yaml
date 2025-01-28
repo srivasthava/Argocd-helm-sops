@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: app-templates
+  namespace: argocd
+spec:
+  generators:
+  - list:
+      elements:
+      - name: frontend-app
+        namespace: frontend
+        repoUrl: https://github.com/your-org/frontend-app
+        chartPath: helm/frontend
+        secretsRepo: https://github.com/your-org/secrets-repo
+        secretsPath: environments/prod/frontend
+        image:
+          repository: your-registry/frontend
+          tag: v1.2.0
+      - name: backend-api
+        namespace: backend
+        repoUrl: https://github.com/your-org/backend-api
+        chartPath: helm/backend
+        secretsRepo: https://github.com/your-org/secrets-repo
+        secretsPath: environments/prod/backend
+        image:
+          repository: your-registry/backend-api
+          tag: v2.1.0
+      - name: auth-service
+        namespace: auth
+        repoUrl: https://github.com/your-org/auth-service
+        chartPath: helm/auth
+        secretsRepo: https://github.com/your-org/secrets-repo
+        secretsPath: environments/prod/auth
+        image:
+          repository: your-registry/auth-service
+          tag: v1.0.1
+      - name: cache-service
+        namespace: cache
+        repoUrl: https://github.com/your-org/cache-service
+        chartPath: helm/cache
+        secretsRepo: https://github.com/your-org/secrets-repo
+        secretsPath: environments/prod/cache
+        image:
+          repository: your-registry/redis-cache
+          tag: v6.2.0
+      - name: monitoring
+        namespace: monitoring
+        repoUrl: https://github.com/your-org/monitoring
+        chartPath: helm/monitoring
+        secretsRepo: https://github.com/your-org/secrets-repo
+        secretsPath: environments/prod/monitoring
+        image:
+          repository: your-registry/prometheus
+          tag: v2.42.0
+  template:
+    metadata:
+      name: '{{name}}'
+      namespace: argocd
+      finalizers:
+      - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: '{{repoUrl}}'
+        targetRevision: HEAD
+        path: '{{chartPath}}'
+        helm:
+          valueFiles:
+          - values.yaml
+          # Reference secrets from external repository
+          - $values/secrets.enc.yaml
+          values: |
+            image:
+              repository: {{image.repository}}
+              tag: {{image.tag}}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+      sources:
+        # Additional source for secrets repository
+        - repoURL: '{{secretsRepo}}'
+          targetRevision: HEAD
+          ref: values
+          path: '{{secretsPath}}'
